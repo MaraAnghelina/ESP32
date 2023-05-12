@@ -1,0 +1,120 @@
+#include <BluetoothSerial.h>
+#include <ArduinoJson.h>
+#include "WiFi.h"
+#include <HTTPClient.h>
+const char* ssid = "DIGI-1507";
+const char* password = "TC6ACcsX";
+const char* btcServerName = "placutza";
+const char* serverName = "https://mcuapi.herokuapp.com/api/v1/tvshows";
+String data, sensorReadings;
+DynamicJsonDocument JSONDocument(12288);
+BluetoothSerial SerialBT;
+void setup() {
+ // put your setup code here, to run once:
+ Serial.begin(115200);
+ WiFi.begin(ssid, password);
+ while(WiFi.status() != WL_CONNECTED)
+ {
+ delay(1000);
+ Serial.println("Nu s-a conectat inca");
+ }
+ Serial.println("S-a conectat");
+ if(WiFi.status() == WL_CONNECTED)
+ {
+ sensorReadings = httpGETRequest(serverName);
+ //Serial.println(sensorReadings);
+ }
+ 
+ SerialBT.begin(btcServerName);
+}
+void loop() {
+ // put your main code here, to run repeatedly:
+ 
+ if (SerialBT.available()) {
+ DeserializationError error = deserializeJson(JSONDocument, sensorReadings.c_str());
+ 
+ if (error) {
+ Serial.println(error.c_str());
+ } 
+ else{
+ Serial.println("S-a conectat la BT");
+ data = SerialBT.readStringUntil('\n');
+ if (data[17]=='e')
+ {
+ int ide=data[31]-'0'-1;
+ Serial.println(ide);
+ //SerialBT.println("{\"id\": \"7\", \"name\": \"string\", \"image\": 
+\"https://i.imgur.com/usPnFks.png\", \"description\": \"a mers intr-un final\"}");
+ SerialBT.print("{\"id\": \"");
+ SerialBT.print(JSONDocument["data"][ide]["id"].as<String>());
+ 
+ SerialBT.print("\", \"name\": \"");
+ SerialBT.print(JSONDocument["data"][ide]["title"].as<String>());
+ 
+ SerialBT.print("\", \"image\": \"");
+ SerialBT.print(JSONDocument["data"][ide]["cover_url"].as<String>());
+ 
+ int i=0;
+ String poo=JSONDocument["data"][ide]["overview"].as<String>();
+ for (i=0;i<poo.length();++i) if (poo[i]=='\"') poo[i]='|'; 
+ //for (i=0;i<poo.length();++i) if (poo[i]>176 || poo[i]<30) poo[i]=' ';
+ SerialBT.print("\", \"description\": \"Overview: ");
+ SerialBT.print(poo);
+ SerialBT.print("\\n");
+ SerialBT.print("Release date: ");
+ SerialBT.print(JSONDocument["data"][ide]["release_date"].as<String>());
+ SerialBT.print("\\n");
+ SerialBT.print("Last aired date: ");
+ SerialBT.print(JSONDocument["data"][ide]["last_aired_date"].as<String>());
+ SerialBT.print("\\n");
+ SerialBT.print("Number seasons: ");
+ SerialBT.print(JSONDocument["data"][ide]["number_seasons"].as<String>());
+ SerialBT.print("\\n");
+ SerialBT.print("Directed by: ");
+ SerialBT.print(JSONDocument["data"][ide]["directed_by"].as<String>());
+ SerialBT.print("\\n");
+ SerialBT.print("Phase: ");
+ SerialBT.print(JSONDocument["data"][ide]["phase"].as<String>());
+ SerialBT.print("\\n");
+ SerialBT.print("IMDB id: ");
+ SerialBT.print(JSONDocument["data"][ide]["imdb_id"].as<String>());
+ SerialBT.print("\\n");
+ SerialBT.print("Trailer: ");
+ SerialBT.print(JSONDocument["data"][ide]["trailer_url"].as<String>());
+ SerialBT.println("\"}");
+ }
+ else{
+ for (int i=0;i<8;++i) {
+ SerialBT.print("{\"id\": \"");
+ SerialBT.print(JSONDocument["data"][i]["id"].as<String>());
+ SerialBT.print("\", \"name\": \"");
+ SerialBT.print(JSONDocument["data"][i]["title"].as<String>());
+ SerialBT.print("\", \"image\": \"");
+ SerialBT.print(JSONDocument["data"][i]["cover_url"].as<String>());
+ SerialBT.println("\"}");
+ }
+ }
+ }
+ } 
+}
+String httpGETRequest(const char* serverName){
+ HTTPClient http;
+ // Your IP address with path or Domain name with URL path 
+ http.begin(serverName);
+ // Send HTTP POST request
+ int httpResponseCode = http.GET();
+ String playload = "{}"; 
+ if (httpResponseCode>0) {
+ Serial.print("HTTP Response code: ");
+ Serial.println(httpResponseCode);
+ playload = http.getString();
+ }
+ else {
+ Serial.print("Error code: ");
+ Serial.println(httpResponseCode);
+ }
+ // Free resources
+ http.end();
+ 
+ return playload;
+ }
